@@ -1,0 +1,62 @@
+{
+  "title": "order-service - RED Metrics",
+  "uid": "red-metrics",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+    {
+      "title": "Request Rate (req/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(otel_http_requests_total{route=\"/checkout\"}[5m])) by (status)",
+          "legendFormat": "{{status}}"
+        }
+      ]
+    },
+    {
+      "title": "Error Ratio",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "percentunit" }, "overrides": [] },
+      "targets": [
+        { "expr": "slo:checkout_requests:error_ratio_rate5m", "legendFormat": "5m error ratio" },
+        { "expr": "0.001", "legendFormat": "SLO threshold (0.1%)" }
+      ]
+    },
+    {
+      "title": "Latency Percentiles (checkout)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        { "expr": "checkout:latency_p50", "legendFormat": "p50" },
+        { "expr": "checkout:latency_p95", "legendFormat": "p95" },
+        { "expr": "checkout:latency_p99", "legendFormat": "p99" },
+        { "expr": "0.3", "legendFormat": "SLO objective (300ms)" }
+      ]
+    },
+    {
+      "title": "Checkout Value Processed ($/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        { "expr": "rate(otel_checkout_value_total[5m])", "legendFormat": "checkout value rate" }
+      ]
+    },
+    {
+      "title": "Errors by Stage",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "expr": "sum(rate(otel_checkout_errors_total[5m])) by (stage)",
+          "legendFormat": "{{stage}}"
+        }
+      ]
+    }
+  ]
+}

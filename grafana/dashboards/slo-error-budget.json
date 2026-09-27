@@ -1,0 +1,62 @@
+{
+  "title": "order-service - SLO & Error Budget",
+  "uid": "slo-error-budget",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "title": "Availability SLO: 99.9% (30d budget)",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.001 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "expr": "1 - slo:checkout_requests:error_ratio_rate1d" }
+      ]
+    },
+    {
+      "title": "Error Budget Burn Rate (multi-window)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 0 },
+      "targets": [
+        { "expr": "slo:checkout_requests:error_ratio_rate5m / 0.001", "legendFormat": "burn rate (5m)" },
+        { "expr": "slo:checkout_requests:error_ratio_rate1h / 0.001", "legendFormat": "burn rate (1h)" },
+        { "expr": "slo:checkout_requests:error_ratio_rate6h / 0.001", "legendFormat": "burn rate (6h)" },
+        { "expr": "14.4", "legendFormat": "fast-burn page threshold" },
+        { "expr": "6", "legendFormat": "mid-burn page threshold" }
+      ]
+    },
+    {
+      "title": "Latency SLO Breach Ratio (vs 300ms objective)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "percentunit" }, "overrides": [] },
+      "targets": [
+        { "expr": "slo:checkout_latency:breach_ratio_rate5m", "legendFormat": "5m breach ratio" },
+        { "expr": "slo:checkout_latency:breach_ratio_rate1h", "legendFormat": "1h breach ratio" },
+        { "expr": "0.01", "legendFormat": "SLO threshold (1%)" }
+      ]
+    },
+    {
+      "title": "Active SLO Alerts",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        { "expr": "ALERTS{slo=~\"checkout.*\"}", "format": "table", "instant": true }
+      ]
+    }
+  ]
+}

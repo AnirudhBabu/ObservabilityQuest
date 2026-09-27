@@ -1,0 +1,119 @@
+version: "3.9"
+
+networks:
+  observability:
+    driver: bridge
+
+services:
+  # ---------------------------------------------------------------
+  # Application under observation: an "order-service" that
+  # simulates a checkout flow (payment validation, inventory
+  # reservation, card charge) with realistic latency and a
+  # controllable failure-injection knob for demoing SLO alerts.
+  # ---------------------------------------------------------------
+  order-service:
+    build: ./app
+    container_name: order-service
+    ports:
+      - "8000:8000"
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
+      OTEL_SERVICE_NAME: "order-service"
+      BASE_ERROR_RATE: "0.01"      # 1% baseline error rate
+      BASE_LATENCY_MS: "80"
+    depends_on:
+      - otel-collector
+    networks:
+      - observability
+
+  # ---------------------------------------------------------------
+  # OpenTelemetry Collector: single ingestion point for traces
+  # and metrics. Fans traces out to Tempo, converts OTLP metrics
+  # into a Prometheus-scrapeable endpoint.
+  # ---------------------------------------------------------------
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.108.0
+    container_name: otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "8889:8889"   # Prometheus exporter scrape endpoint
+    depends_on:
+      - tempo
+    networks:
+      - observability
+
+  # ---------------------------------------------------------------
+  # Tempo: trace storage/query backend.
+  # ---------------------------------------------------------------
+  tempo:
+    image: grafana/tempo:2.6.1
+    container_name: tempo
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./tempo/tempo.yaml:/etc/tempo.yaml:ro
+    ports:
+      - "3200:3200"   # Tempo query API
+    networks:
+      - observability
+
+  # ---------------------------------------------------------------
+  # Prometheus: scrapes the collector's metrics endpoint, evaluates
+  # SLO recording + burn-rate alerting rules.
+  # ---------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/recording_rules.yml:/etc/prometheus/recording_rules.yml:ro
+      - ./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9090:9090"
+    depends_on:
+      - otel-collector
+    networks:
+      - observability
+
+  # ---------------------------------------------------------------
+  # Alertmanager: routes burn-rate / availability alerts.
+  # ---------------------------------------------------------------
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: alertmanager
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+    ports:
+      - "9093:9093"
+    networks:
+      - observability
+
+  # ---------------------------------------------------------------
+  # Grafana: pre-provisioned datasources + dashboards (RED metrics,
+  # SLO / error-budget burn).
+  # ---------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: grafana
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+      GF_FEATURE_TOGGLES_ENABLE: "traceqlEditor"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - tempo
+    networks:
+      - observability

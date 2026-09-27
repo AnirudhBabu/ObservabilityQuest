@@ -1,0 +1,93 @@
+# SLI recording rules for the /checkout endpoint.
+#
+# SLO definitions (see README for rationale):
+#   Availability : 99.9% of /checkout requests succeed over a 30-day window
+#                  (error budget = 0.1% = 43m 49s / 30d)
+#   Latency      : 99% of /checkout requests complete in < 300ms
+#
+# Metric names carry the "otel_" namespace prefix because they arrive via
+# the OTel Collector's Prometheus exporter (namespace: otel).
+
+groups:
+  - name: checkout-sli-error-ratio
+    rules:
+      - record: slo:checkout_requests:error_ratio_rate5m
+        expr: |
+          sum(rate(otel_http_requests_total{route="/checkout", status="error"}[5m]))
+          /
+          sum(rate(otel_http_requests_total{route="/checkout"}[5m]))
+
+      - record: slo:checkout_requests:error_ratio_rate30m
+        expr: |
+          sum(rate(otel_http_requests_total{route="/checkout", status="error"}[30m]))
+          /
+          sum(rate(otel_http_requests_total{route="/checkout"}[30m]))
+
+      - record: slo:checkout_requests:error_ratio_rate1h
+        expr: |
+          sum(rate(otel_http_requests_total{route="/checkout", status="error"}[1h]))
+          /
+          sum(rate(otel_http_requests_total{route="/checkout"}[1h]))
+
+      - record: slo:checkout_requests:error_ratio_rate6h
+        expr: |
+          sum(rate(otel_http_requests_total{route="/checkout", status="error"}[6h]))
+          /
+          sum(rate(otel_http_requests_total{route="/checkout"}[6h]))
+
+      - record: slo:checkout_requests:error_ratio_rate1d
+        expr: |
+          sum(rate(otel_http_requests_total{route="/checkout", status="error"}[1d]))
+          /
+          sum(rate(otel_http_requests_total{route="/checkout"}[1d]))
+
+      - record: slo:checkout_requests:error_ratio_rate3d
+        expr: |
+          sum(rate(otel_http_requests_total{route="/checkout", status="error"}[3d]))
+          /
+          sum(rate(otel_http_requests_total{route="/checkout"}[3d]))
+
+  - name: checkout-sli-latency-ratio
+    # Fraction of requests exceeding the 300ms latency objective, per window --
+    # same burn-rate math as the error-ratio SLI, applied to the latency SLO.
+    rules:
+      - record: slo:checkout_latency:breach_ratio_rate5m
+        expr: |
+          1 - (
+            sum(rate(otel_http_request_duration_seconds_bucket{route="/checkout", le="0.3"}[5m]))
+            /
+            sum(rate(otel_http_request_duration_seconds_count{route="/checkout"}[5m]))
+          )
+
+      - record: slo:checkout_latency:breach_ratio_rate1h
+        expr: |
+          1 - (
+            sum(rate(otel_http_request_duration_seconds_bucket{route="/checkout", le="0.3"}[1h]))
+            /
+            sum(rate(otel_http_request_duration_seconds_count{route="/checkout"}[1h]))
+          )
+
+      - record: slo:checkout_latency:breach_ratio_rate6h
+        expr: |
+          1 - (
+            sum(rate(otel_http_request_duration_seconds_bucket{route="/checkout", le="0.3"}[6h]))
+            /
+            sum(rate(otel_http_request_duration_seconds_count{route="/checkout"}[6h]))
+          )
+
+      - record: slo:checkout_latency:breach_ratio_rate3d
+        expr: |
+          1 - (
+            sum(rate(otel_http_request_duration_seconds_bucket{route="/checkout", le="0.3"}[3d]))
+            /
+            sum(rate(otel_http_request_duration_seconds_count{route="/checkout"}[3d]))
+          )
+
+  - name: checkout-latency-percentiles
+    rules:
+      - record: checkout:latency_p50
+        expr: histogram_quantile(0.50, sum(rate(otel_http_request_duration_seconds_bucket{route="/checkout"}[5m])) by (le))
+      - record: checkout:latency_p95
+        expr: histogram_quantile(0.95, sum(rate(otel_http_request_duration_seconds_bucket{route="/checkout"}[5m])) by (le))
+      - record: checkout:latency_p99
+        expr: histogram_quantile(0.99, sum(rate(otel_http_request_duration_seconds_bucket{route="/checkout"}[5m])) by (le))

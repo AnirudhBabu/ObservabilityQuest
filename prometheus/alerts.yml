@@ -1,0 +1,87 @@
+# Multi-window, multi-burn-rate alerting on the checkout availability and
+# latency SLOs, following the Google SRE Workbook pattern
+# (https://sre.google/workbook/alerting-on-slos/). Two conditions must both
+# be true (a short window AND a long window) before paging, which trades a
+# little detection latency for a large drop in false positives from
+# single-window noise -- the same trade-off used in production SLO alerting.
+#
+# Error budget: 0.1% over 30d. Burn-rate thresholds:
+#   Fast burn  (page):  14.4x  -> exhausts a 30d budget in ~2 days if sustained
+#   Mid burn   (page):   6x    -> exhausts a 30d budget in ~5 days if sustained
+#   Slow burn  (ticket):  1x   -> exhausts a 30d budget in ~30 days if sustained
+
+groups:
+  - name: checkout-availability-burn-rate
+    rules:
+      - alert: CheckoutAvailabilitySLOFastBurn
+        expr: |
+          slo:checkout_requests:error_ratio_rate5m > (14.4 * 0.001)
+          and
+          slo:checkout_requests:error_ratio_rate1h > (14.4 * 0.001)
+        for: 2m
+        labels:
+          severity: page
+          slo: checkout-availability
+        annotations:
+          summary: "Checkout error budget burning >14.4x -- will exhaust 30d budget in ~2 days"
+          description: "5m error ratio {{ $value | humanizePercentage }}. Page immediately; check recent deploys first."
+
+      - alert: CheckoutAvailabilitySLOMidBurn
+        expr: |
+          slo:checkout_requests:error_ratio_rate30m > (6 * 0.001)
+          and
+          slo:checkout_requests:error_ratio_rate6h > (6 * 0.001)
+        for: 15m
+        labels:
+          severity: page
+          slo: checkout-availability
+        annotations:
+          summary: "Checkout error budget burning >6x -- will exhaust 30d budget in ~5 days"
+
+      - alert: CheckoutAvailabilitySLOSlowBurn
+        expr: |
+          slo:checkout_requests:error_ratio_rate1d > (1 * 0.001)
+          and
+          slo:checkout_requests:error_ratio_rate3d > (1 * 0.001)
+        for: 1h
+        labels:
+          severity: ticket
+          slo: checkout-availability
+        annotations:
+          summary: "Checkout error budget burning at ~1x -- will exhaust in ~30 days, file a ticket"
+
+  - name: checkout-latency-burn-rate
+    rules:
+      - alert: CheckoutLatencySLOFastBurn
+        expr: |
+          slo:checkout_latency:breach_ratio_rate5m > (14.4 * 0.01)
+          and
+          slo:checkout_latency:breach_ratio_rate1h > (14.4 * 0.01)
+        for: 2m
+        labels:
+          severity: page
+          slo: checkout-latency
+        annotations:
+          summary: "Checkout p99 latency SLO burning fast (>14.4x) against the 300ms objective"
+
+      - alert: CheckoutLatencySLOSlowBurn
+        expr: |
+          slo:checkout_latency:breach_ratio_rate6h > (1 * 0.01)
+          and
+          slo:checkout_latency:breach_ratio_rate3d > (1 * 0.01)
+        for: 1h
+        labels:
+          severity: ticket
+          slo: checkout-latency
+        annotations:
+          summary: "Checkout p99 latency SLO burning steadily -- investigate before it pages"
+
+  - name: infra-health
+    rules:
+      - alert: OrderServiceTargetDown
+        expr: up{job="otel-collector"} == 0
+        for: 1m
+        labels:
+          severity: page
+        annotations:
+          summary: "otel-collector metrics endpoint unreachable -- telemetry pipeline is blind"
