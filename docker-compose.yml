@@ -19,7 +19,7 @@ services:
     environment:
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
       OTEL_SERVICE_NAME: "order-service"
-      BASE_ERROR_RATE: "0.01"      # 1% baseline error rate
+      BASE_ERROR_RATE: "0.0005"    # 0.05% baseline, inside the 0.1% error budget
       BASE_LATENCY_MS: "80"
     depends_on:
       - otel-collector

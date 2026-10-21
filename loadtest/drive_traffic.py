@@ -59,7 +59,7 @@ if __name__ == "__main__":
         set_chaos(error_rate=args.rate)
         fire_requests(args.chaos, args.rps)
         print("Reverting to baseline error rate...")
-        set_chaos(error_rate=0.01)
+        set_chaos(error_rate=0.0005)
 
     print("Continuing steady baseline traffic (Ctrl+C to stop)...")
     while True:

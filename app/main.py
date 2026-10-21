@@ -59,7 +59,7 @@ CHECKOUT_ERRORS = Counter("checkout_errors_total", "Checkout failures", ["stage"
 
 # Chaos knobs -- mutable at runtime via /admin/chaos to demo alert firing
 STATE = {
-    "error_rate": float(os.getenv("BASE_ERROR_RATE", "0.01")),
+    "error_rate": float(os.getenv("BASE_ERROR_RATE", "0.0005")),
     "latency_ms": float(os.getenv("BASE_LATENCY_MS", "80")),
 }
 
